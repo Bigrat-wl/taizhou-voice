@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,38 @@ AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "audio"
 
 # 允许的音频扩展名（与 /api/asr 保持一致）
 _ALLOWED_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".webm"}
+
+# 需要 ffmpeg 转码的格式（libsndfile/librosa 不支持）
+_FFMPEG_ONLY_SUFFIXES = {".webm", ".ogg", ".m4a", ".aac", ".wma"}
+
+
+def _ensure_wav(src_path: str, src_suffix: str) -> str:
+    """确保音频文件为 wav 格式；非 wav 时用 ffmpeg 转为 16kHz 单声道 wav。
+
+    Returns:
+        wav 文件路径（src_path 本身已是 wav 时原样返回，否则为新临时文件路径）。
+
+    Raises:
+        RuntimeError: ffmpeg 转码失败。
+    """
+    if src_suffix == ".wav":
+        return src_path
+
+    if src_suffix in _FFMPEG_ONLY_SUFFIXES:
+        wav_path = src_path + ".wav"
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1", wav_path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg 转码失败（{src_suffix} → wav）: {result.stderr[:500]}"
+            )
+        return wav_path
+
+    # 其他格式（mp3/flac 等）：librosa 本身支持，直接用原文件
+    return src_path
 
 
 def _get_asr_service() -> Qwen3ASRService:
@@ -65,6 +99,7 @@ def score(
 
     # 3. 临时落盘上传文件 → ASR 识别
     tmp_path: str | None = None
+    wav_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             prefix="score_upload_", suffix=suffix, delete=False
@@ -72,8 +107,11 @@ def score(
             tmp.write(audio.file.read())
             tmp_path = tmp.name
 
+        # webm/opus 等格式需要 ffmpeg 转码后再识别
+        wav_path = _ensure_wav(tmp_path, suffix)
+
         asr_service = _get_asr_service()
-        transcript = asr_service.transcribe_file(tmp_path)
+        transcript = asr_service.transcribe_file(wav_path)
 
         if not transcript:
             raise HTTPException(status_code=422, detail="未识别到有效语音内容")
@@ -88,7 +126,7 @@ def score(
         audio_dest = AUDIO_DIR / audio_filename
 
         # 将上传文件转为 WAV（统一 16kHz 单声道）并保存
-        _convert_to_wav(tmp_path, str(audio_dest))
+        _convert_to_wav(wav_path, str(audio_dest))
 
         # 6. 存 recordings 表
         recording = Recording(
@@ -111,6 +149,8 @@ def score(
 
     except HTTPException:
         raise
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("评分失败")
         raise HTTPException(status_code=500, detail=f"评分失败: {exc}") from exc
@@ -120,23 +160,33 @@ def score(
                 Path(tmp_path).unlink(missing_ok=True)
             except OSError:
                 logger.warning("临时文件清理失败: %s", tmp_path)
+        if wav_path and wav_path != tmp_path:
+            try:
+                Path(wav_path).unlink(missing_ok=True)
+            except OSError:
+                logger.warning("临时 wav 文件清理失败: %s", wav_path)
 
 
 def _convert_to_wav(src_path: str, dest_path: str) -> None:
     """将任意音频格式转换为 16kHz 单声道 WAV 并保存到目标路径。
 
-    如果源文件已经是 WAV，则直接复制；否则用 librosa 读取后用 soundfile 写入。
+    如果源文件已经是 WAV，则直接复制；否则用 ffmpeg 转码。
+    注意：webm/ogg 等格式应在调用前先经过 _ensure_wav() 处理，
+    本函数主要处理 mp3/flac 等 librosa 支持的格式以及已转换的 wav。
     """
     src_suffix = Path(src_path).suffix.lower()
     if src_suffix == ".wav":
         # 已是 WAV，直接复制
-        import shutil
-
         shutil.copy2(src_path, dest_path)
         return
 
-    import librosa
-    import soundfile as sf
-
-    wav, sr = librosa.load(src_path, sr=16000, mono=True)
-    sf.write(dest_path, wav, 16000, subtype="PCM_16")
+    # 非 wav 格式：用 ffmpeg 转为 16kHz 单声道 wav
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1", dest_path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg 转码失败（{src_suffix} → wav）: {result.stderr[:500]}"
+        )

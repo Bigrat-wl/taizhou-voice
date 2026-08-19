@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 import struct
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -328,3 +328,82 @@ class TestPostScore:
         body = resp.json()
         assert isinstance(body["score"], int)
         assert "level" not in body
+
+
+# ===========================================================================
+# webm/opus 转码测试
+# ===========================================================================
+
+class TestScoreWebmTranscode:
+    """webm 上传走 ffmpeg 转码路径：确保 _ensure_wav 被正确调用。"""
+
+    def test_webm_triggers_ffmpeg_transcode(self, client, tmp_path):
+        """webm 上传 → ffmpeg 转码 → ASR 识别 → 正常评分。"""
+        fake_webm = b"\x1a\x45\xdf\xa3" + b"\x00" * 100  # 极简 webm 文件头
+
+        def fake_subprocess_run(cmd, **kwargs):
+            # ffmpeg 会生成目标 wav 文件，这里模拟它
+            dest = cmd[-1]
+            Path(dest).write_bytes(_make_wav_bytes())
+            result = MagicMock()
+            result.returncode = 0
+            result.stderr = ""
+            return result
+
+        with (
+            patch("app.routers.score.subprocess.run", side_effect=fake_subprocess_run),
+            patch(
+                "app.services.asr_service.Qwen3ASRService.transcribe_file",
+                return_value="今天天气真好",
+            ),
+            patch("app.routers.score.AUDIO_DIR", tmp_path),
+        ):
+            resp = client.post(
+                "/api/score",
+                headers=_auth_header(),
+                files={"audio": ("test.webm", fake_webm, "audio/webm")},
+                data={"sentence_id": 1},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["transcript"] == "今天天气真好"
+        assert body["score"] == 100
+
+    def test_webm_ffmpeg_failure_returns_422(self, client):
+        """ffmpeg 转码失败 → 422 + 明确错误。"""
+        fake_webm = b"\x1a\x45\xdf\xa3" + b"\x00" * 100
+
+        def fake_subprocess_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 1
+            result.stderr = "Invalid data found when processing input"
+            return result
+
+        with patch("app.routers.score.subprocess.run", side_effect=fake_subprocess_run):
+            resp = client.post(
+                "/api/score",
+                headers=_auth_header(),
+                files={"audio": ("test.webm", fake_webm, "audio/webm")},
+                data={"sentence_id": 1},
+            )
+        assert resp.status_code == 422
+        assert "ffmpeg" in resp.json()["detail"].lower()
+
+    def test_wav_upload_skips_ffmpeg(self, client):
+        """wav 上传不应触发 ffmpeg 转码。"""
+        with (
+            patch("app.routers.score.subprocess.run") as mock_run,
+            patch(
+                "app.services.asr_service.Qwen3ASRService.transcribe_file",
+                return_value="今天天气真好",
+            ),
+        ):
+            resp = client.post(
+                "/api/score",
+                headers=_auth_header(),
+                files={"audio": ("test.wav", _make_wav_bytes(), "audio/wav")},
+                data={"sentence_id": 1},
+            )
+        assert resp.status_code == 200
+        # wav 上传不调用 ffmpeg
+        mock_run.assert_not_called()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -104,6 +105,38 @@ def health() -> dict:
 
 MAX_SENTENCES = 50  # 单次最多返回条数（上限限制）
 
+# 需要 ffmpeg 转码的格式（libsndfile/librosa 不支持）
+_FFMPEG_ONLY_SUFFIXES = {".webm", ".ogg", ".m4a", ".aac", ".wma"}
+
+
+def _ensure_wav(src_path: str, src_suffix: str) -> str:
+    """确保音频文件为 wav 格式；非 wav 时用 ffmpeg 转为 16kHz 单声道 wav。
+
+    Returns:
+        wav 文件路径（src_path 本身已是 wav 时原样返回，否则为新临时文件路径）。
+
+    Raises:
+        RuntimeError: ffmpeg 转码失败。
+    """
+    if src_suffix == ".wav":
+        return src_path
+
+    if src_suffix in _FFMPEG_ONLY_SUFFIXES:
+        wav_path = src_path + ".wav"
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1", wav_path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg 转码失败（{src_suffix} → wav）: {result.stderr[:500]}"
+            )
+        return wav_path
+
+    # 其他格式（mp3/flac 等）：librosa 本身支持，直接用原文件
+    return src_path
+
 
 @app.get("/api/sentences")
 def get_sentences(
@@ -139,6 +172,7 @@ def asr(audio: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=415, detail=f"不支持的音频格式: {suffix}")
 
     tmp_path: str | None = None
+    wav_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             prefix="asr_upload_", suffix=suffix, delete=False
@@ -146,7 +180,9 @@ def asr(audio: UploadFile = File(...)) -> JSONResponse:
             tmp.write(audio.file.read())
             tmp_path = tmp.name
 
-        text = asr_service.transcribe_file(tmp_path)
+        # webm/opus 等格式需要 ffmpeg 转码后再识别
+        wav_path = _ensure_wav(tmp_path, suffix)
+        text = asr_service.transcribe_file(wav_path)
         if not text:
             raise HTTPException(status_code=422, detail="未识别到有效语音内容")
         return JSONResponse({"text": text, "language": "Chinese"})
@@ -154,6 +190,8 @@ def asr(audio: UploadFile = File(...)) -> JSONResponse:
         raise
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("ASR 识别失败")
         raise HTTPException(status_code=500, detail=f"识别失败: {exc}") from exc
@@ -163,6 +201,11 @@ def asr(audio: UploadFile = File(...)) -> JSONResponse:
                 Path(tmp_path).unlink(missing_ok=True)
             except OSError:  # pragma: no cover
                 logger.warning("临时文件清理失败: %s", tmp_path)
+        if wav_path and wav_path != tmp_path:
+            try:
+                Path(wav_path).unlink(missing_ok=True)
+            except OSError:  # pragma: no cover
+                logger.warning("临时 wav 文件清理失败: %s", wav_path)
 
 
 if __name__ == "__main__":
