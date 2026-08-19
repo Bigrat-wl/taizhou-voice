@@ -1,0 +1,32 @@
+[project]
+name = "taizhou-voice-backend"
+version = "0.1.0"
+description = "泰州方言通 FastAPI 后端（Qwen3-ASR 识别服务）"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch==2.7.1",
+    "torchaudio==2.7.1",
+    "qwen-asr==0.0.6",
+    "transformers==4.57.6",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"
+
+# torch / torchaudio 固定使用 CPU 版（download.pytorch.org/whl/cpu），避免误装 CUDA 版
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }

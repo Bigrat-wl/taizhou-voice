@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# 前端
+node_modules/
+.nuxt/
+.output/
+dist/
+.nitro/
+.vercel/
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志
+logs/
+*.log
+
+# 模型权重（大文件，不进 git）
+models/*
+!models/README.md
+
+# 数据
+data/audio/
+data/uploads/
+
+# 环境变量
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
