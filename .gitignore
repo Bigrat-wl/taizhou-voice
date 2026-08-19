@@ -32,6 +32,7 @@ models/*
 # 数据
 data/audio/
 data/uploads/
+backend/data/
 
 # 环境变量
 .env
