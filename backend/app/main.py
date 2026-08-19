@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.services.asr_service import Qwen3ASRService
@@ -34,6 +35,16 @@ asr_service = Qwen3ASRService(
 # 允许的音频扩展名（用于临时文件落盘；解码本身交给 librosa/soundfile）
 _ALLOWED_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".webm"}
 
+# CORS：开发期放开本地来源（Nuxt 前端 3000 等）；生产环境再收紧
+CORS_ALLOW_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost",
+    "http://127.0.0.1",
+]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,6 +64,14 @@ app = FastAPI(
     description="Qwen3-ASR（本地 CPU / float32）音频转普通话文本",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 

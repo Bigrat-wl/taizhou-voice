@@ -9,6 +9,7 @@ venv/
 
 # 前端
 node_modules/
+.pnpm-cache/
 .nuxt/
 .output/
 dist/
