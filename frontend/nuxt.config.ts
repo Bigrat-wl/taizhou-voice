@@ -17,7 +17,15 @@ export default defineNuxtConfig({
 
   icon: {
     clientBundle: {
-      icons: ['lucide:mic']
+      icons: [
+        'lucide:home',
+        'lucide:flame',
+        'lucide:trophy',
+        'lucide:mic',
+        'lucide:volume-2',
+        'lucide:arrow-left-right',
+        'lucide:arrow-right',
+      ]
     }
   }
 })
