@@ -99,11 +99,27 @@ curl http://127.0.0.1:8000/health
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 浏览器访问 `http://localhost:3000`。
+
+### 6. 初始化数据（首次 / 删库重建后必做）
+
+后端需要种子数据才能正常运行，包括句子库和测试账号：
+
+```bash
+cd backend
+
+# 导入 27 句参考句子
+uv run python -m app.seed_sentences
+
+# 创建测试账号 test@test.com / 123456
+uv run python scripts/seed_test_user.py
+```
+
+> ⚠️ 删除 `backend/data/` 下的 SQLite 数据库后，必须重新执行上述命令。
 
 ## 三、常见问题
 
@@ -111,3 +127,6 @@ npm run dev
 - **TTS 不可用**：TTS 需要 GPU，确认 `nvidia-smi` 能显示显卡，且后端用 `ASR_DEVICE=cuda:0` 启动。
 - **浏览器录音无反应**：允许麦克风权限；确认后端已装 ffmpeg。
 - **换电脑跑不起来**：先查 torch 是否装成与显卡匹配的 CUDA 版本（见上文）。
+- **浏览器录音格式是 webm**：正常现象，后端会自动调用 ffmpeg 转码为 16kHz WAV，无需前端处理。
+- **前端代理 404**：Nuxt 4 使用 `nitro.devProxy` 配置代理（不是 `devServer.proxy`），检查 `nuxt.config.ts` 的 `nitro` 字段。
+- **删库重建后功能异常**：数据库重建后必须重新 seed（参考第六步），否则句子库为空、无测试账号。
