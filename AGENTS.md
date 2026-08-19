@@ -27,6 +27,27 @@
 - scope 标前后端：`feat(backend)` / `feat(frontend)` / `docs`。
 - 模型权重、数据库文件、音频文件一律不进 git（`.gitignore` 已覆盖）。
 
+## 契约先行
+
+- 接口先写 `docs/API契约.md`、表结构先写 `docs/数据模型.md`，**再写实现**。
+- 实现严格照契约，不迁就 mock 字段名；契约与实现冲突时，改契约前先确认。
+
+## 测试先行（TDD）
+
+- 关键逻辑（评分、鉴权、接口校验）先写失败测试锁定行为，再实现让测试通过。
+
+## 验证门禁（提交前必过）
+
+- 后端：`cd backend && uv run pytest` 全绿。
+- 前端：`cd frontend && pnpm build` 通过（含 TS 类型检查）。
+- `git diff --check` 无空白错误。
+
+## 角色边界
+
+- 诸葛（决策）：只讨论方案、产任务书、给执行 prompt；不写实现代码、不启停 dev server。
+- 实现：读任务书 + 执行 prompt 写码，不重新讨论需求；改共享文件前先读现状，避免撞车。
+- 执行 prompt 一句话含 4 要素：读任务书 + 核心改动点 + 验证命令 + 不启动 dev server。
+
 ## 文档与任务书
 
 - 任务书（诸葛产物）放 `docs/YYYY-MM-DD-<topic>-design.md`。
