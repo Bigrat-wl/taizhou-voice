@@ -8,10 +8,14 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
+from app.db import get_db
+from app.models import Sentence
 from app.services.asr_service import Qwen3ASRService
 
 logging.basicConfig(
@@ -78,6 +82,31 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "model_loaded": asr_service.is_loaded}
+
+
+MAX_SENTENCES = 50  # 单次最多返回条数（上限限制）
+
+
+@app.get("/api/sentences")
+def get_sentences(
+    n: int = Query(default=5, ge=1, description="返回句子条数"),
+    db: Session = Depends(get_db),
+) -> dict:
+    """从 sentences 表随机取 N 句（挑战赛用）。
+
+    默认 n=5，上限 MAX_SENTENCES（50）。
+    响应：``{"sentences": [{"id":..,"text":..,"dialect_text":..}, ...]}``
+    """
+    n = min(n, MAX_SENTENCES)
+    rows = db.execute(
+        select(Sentence).order_by(func.random()).limit(n)
+    ).scalars().all()
+    return {
+        "sentences": [
+            {"id": s.id, "text": s.text, "dialect_text": s.dialect_text}
+            for s in rows
+        ]
+    }
 
 
 @app.post("/api/asr")
