@@ -367,7 +367,7 @@ onMounted(loadSentences)
 
                 <!-- 提交评分 -->
                 <button
-                  v-if="getState(sentence.id).phase === 'recorded' && getState(sentence.id).blob"
+                  v-if="(getState(sentence.id).phase === 'recorded' || getState(sentence.id).phase === 'submitting') && getState(sentence.id).blob"
                   type="button"
                   :disabled="getState(sentence.id).phase === 'submitting' || !isLoggedIn"
                   class="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
