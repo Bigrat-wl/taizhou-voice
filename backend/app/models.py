@@ -1,20 +1,26 @@
-"""SQLAlchemy ORM 模型：sentences / users / recordings / translations。
+"""SQLAlchemy ORM 模型：sentences / users / recordings / likes / translations。
 
-字段严格按《泰州方言通-项目设计》第六节数据设计。
+字段严格按《数据模型设计（v2）》对齐：
+- 时间统一中国时区（Asia/Shanghai）
+- 用户用邮箱 + 密码（bcrypt），无 openid
+- 评分只存整数分，无等级字段
+- 点赞关系单独一张表（联合唯一）
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
 
-def _utcnow() -> datetime:
-    return datetime.now()
+def _now() -> datetime:
+    """上海本地时间（naive），保证与「中国时区」约定一致。"""
+    return datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
 
 
 class Sentence(Base):
@@ -30,25 +36,28 @@ class Sentence(Base):
     category: Mapped[str] = mapped_column(String(64), nullable=False, default="", comment="分类")
     difficulty: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="难度等级")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, comment="创建时间"
+        DateTime, nullable=False, default=_now, comment="创建时间"
     )
 
 
 class User(Base):
-    """用户（演示用昵称）。"""
+    """用户（邮箱 + 密码登录）。"""
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    openid: Mapped[str] = mapped_column(
-        String(128), nullable=False, unique=True, comment="openid/演示唯一标识"
+    email: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, comment="登录邮箱（唯一标识）"
     )
-    nickname: Mapped[str] = mapped_column(String(64), nullable=False, comment="昵称")
-    total_score: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.0, comment="总分"
+    password_hash: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="bcrypt 哈希，永不返回"
+    )
+    nickname: Mapped[str] = mapped_column(String(64), nullable=False, comment="昵称（允许重名）")
+    total_score: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="累计总分（整数分）"
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, comment="创建时间"
+        DateTime, nullable=False, default=_now, comment="创建时间"
     )
 
 
@@ -64,11 +73,30 @@ class Recording(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), nullable=False, comment="关联用户"
     )
-    audio_path: Mapped[str] = mapped_column(String(512), nullable=False, comment="音频本地路径")
-    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, comment="评分")
-    level: Mapped[str] = mapped_column(String(16), nullable=False, default="", comment="等级")
+    audio_path: Mapped[str] = mapped_column(String(512), nullable=False, comment="音频相对路径")
+    score: Mapped[int] = mapped_column(Integer, nullable=False, default=0, comment="评分 0~100 整数")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, comment="创建时间"
+        DateTime, nullable=False, default=_now, comment="创建时间"
+    )
+
+
+class Like(Base):
+    """点赞关系（录音 × 用户，联合唯一防重复点赞）。"""
+
+    __tablename__ = "likes"
+    __table_args__ = (
+        UniqueConstraint("recording_id", "user_id", name="uq_like_recording_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    recording_id: Mapped[int] = mapped_column(
+        ForeignKey("recordings.id"), nullable=False, comment="被点赞录音"
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False, comment="点赞人"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_now, comment="创建时间"
     )
 
 
@@ -85,5 +113,5 @@ class Translation(Base):
     result_text: Mapped[str] = mapped_column(Text, nullable=False, default="", comment="结果文本")
     direction: Mapped[str] = mapped_column(String(32), nullable=False, default="", comment="方向")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, comment="创建时间"
+        DateTime, nullable=False, default=_now, comment="创建时间"
     )
