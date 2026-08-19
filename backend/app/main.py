@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Sentence
 from app.routers.auth import router as auth_router
+from app.routers.leaderboard import router as leaderboard_router
 from app.routers.score import router as score_router
 from app.services.asr_service import Qwen3ASRService
 
@@ -76,12 +77,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 # 认证路由：/api/auth/register、/api/auth/login
 app.include_router(auth_router)
+# 排行榜/点赞/句子录音路由
+app.include_router(leaderboard_router)
 # 评分路由：/api/score（需登录）
 app.include_router(score_router)
 
