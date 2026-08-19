@@ -9,11 +9,11 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8000/api',
         changeOrigin: true
       },
       '/data': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8000/data',
         changeOrigin: true
       }
     }
