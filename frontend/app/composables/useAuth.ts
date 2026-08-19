@@ -10,11 +10,13 @@ export interface AuthResponse {
 }
 
 const TOKEN_KEY = 'token'
+const USER_KEY = 'auth-user'
 
 /**
  * 认证状态 + 登录/注册/登出。
  *
  * - token 持久化到 localStorage（key: `token`），应用内通过 useState 共享（SSR 安全）。
+ * - user 同步持久化（key: `auth-user`），刷新后昵称等字段不丢失。
  * - 登录/注册成功后自动写入 token 并返回，由页面负责跳转。
  */
 export function useAuth() {
@@ -22,15 +24,28 @@ export function useAuth() {
     if (import.meta.client) return localStorage.getItem(TOKEN_KEY)
     return null
   })
-  const user = useState<AuthUser | null>('auth-user', () => null)
+  const user = useState<AuthUser | null>('auth-user', () => {
+    if (import.meta.client) {
+      const raw = localStorage.getItem(USER_KEY)
+      if (raw) {
+        try { return JSON.parse(raw) as AuthUser } catch { /* ignore */ }
+      }
+    }
+    return null
+  })
 
   const isLoggedIn = computed(() => !!token.value)
   const nickname = computed(() => user.value?.nickname || '')
 
   function persist(): void {
     if (import.meta.client) {
-      if (token.value) localStorage.setItem(TOKEN_KEY, token.value)
-      else localStorage.removeItem(TOKEN_KEY)
+      if (token.value) {
+        localStorage.setItem(TOKEN_KEY, token.value)
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+      } else {
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(USER_KEY)
+      }
     }
   }
 
