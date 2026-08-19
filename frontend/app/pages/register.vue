@@ -30,7 +30,7 @@ async function onSubmit() {
     await register(email.value, password.value, nickname.value.trim())
     router.push(redirect.value)
   } catch (e: any) {
-    error.value = e?.data?.detail || e?.message || '注册失败，请稍后再试'
+    error.value = getErrorDetail(e, '注册失败，请稍后再试')
   } finally {
     loading.value = false
   }
@@ -51,7 +51,7 @@ async function onSubmit() {
       <form class="flex flex-col gap-4" @submit.prevent="onSubmit">
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-slate-700">昵称</span>
-          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-indigo-400">
+          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400">
             <Icon name="lucide:user" class="h-4 w-4 shrink-0 text-slate-400" />
             <input
               v-model="nickname"
@@ -66,7 +66,7 @@ async function onSubmit() {
 
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-slate-700">邮箱</span>
-          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-indigo-400">
+          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400">
             <Icon name="lucide:mail" class="h-4 w-4 shrink-0 text-slate-400" />
             <input
               v-model="email"
@@ -80,7 +80,7 @@ async function onSubmit() {
 
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-slate-700">密码</span>
-          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 focus-within:border-indigo-400">
+          <span class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400">
             <Icon name="lucide:lock" class="h-4 w-4 shrink-0 text-slate-400" />
             <input
               v-model="password"
@@ -99,7 +99,7 @@ async function onSubmit() {
         <button
           type="submit"
           :disabled="loading"
-          class="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+          class="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Icon v-if="loading" name="lucide:loader-circle" class="h-4 w-4 animate-spin" />
           <Icon v-else name="lucide:user-plus" class="h-4 w-4" />
