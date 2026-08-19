@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Sentence
+from app.routers.auth import router as auth_router
 from app.services.asr_service import Qwen3ASRService
 
 logging.basicConfig(
@@ -77,6 +78,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# 认证路由：/api/auth/register、/api/auth/login
+app.include_router(auth_router)
 
 
 @app.get("/health")
