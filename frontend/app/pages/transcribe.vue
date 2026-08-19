@@ -2,6 +2,7 @@
 import { computed, shallowRef, useTemplateRef } from 'vue'
 import { navItems } from '~/composables/useNav'
 import { useRecorder } from '~/composables/useRecorder'
+import { useBlobUrl } from '~/composables/useBlobUrl'
 
 const item = navItems.find((n) => n.to === '/transcribe')!
 
@@ -20,6 +21,9 @@ const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 /** 待转写音频：录音 Blob 或上传的文件 */
 const pendingBlob = shallowRef<Blob | null>(null)
 const pendingName = shallowRef('')
+
+/** 待转写音频的临时播放地址（随 pendingBlob 自动创建/释放） */
+const { url: previewUrl } = useBlobUrl(pendingBlob)
 
 /** 识别状态 */
 const recognizing = shallowRef(false)
@@ -83,9 +87,7 @@ async function transcribe() {
     })
     resultText.value = data.text
   } catch (err) {
-    // FastAPI 错误体：{ detail: "..." }；网络/其他错误兜底
-    const detail = (err as { data?: { detail?: string } } | undefined)?.data?.detail
-    errorText.value = detail || '识别失败，请稍后重试。'
+    errorText.value = getErrorDetail(err, '识别失败，请稍后重试。')
   } finally {
     recognizing.value = false
   }
@@ -179,6 +181,14 @@ function reset() {
               {{ (pendingBlob!.size / 1024).toFixed(1) }} KB
             </span>
           </p>
+          <!-- 试听回放 -->
+          <audio
+            v-if="previewUrl"
+            :src="previewUrl"
+            controls
+            preload="metadata"
+            class="mt-3 h-11 w-full"
+          ></audio>
           <div class="mt-3 flex flex-wrap gap-3">
             <button
               type="button"
