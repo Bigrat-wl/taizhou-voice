@@ -25,6 +25,17 @@ export default defineNuxtConfig({
         'lucide:volume-2',
         'lucide:arrow-left-right',
         'lucide:arrow-right',
+        'lucide:file-audio',
+        'lucide:file-text',
+        'lucide:log-in',
+        'lucide:log-out',
+        'lucide:loader-circle',
+        'lucide:lock',
+        'lucide:mail',
+        'lucide:square',
+        'lucide:upload',
+        'lucide:user',
+        'lucide:user-plus',
       ]
     }
   }

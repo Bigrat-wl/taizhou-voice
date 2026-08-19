@@ -2,10 +2,17 @@
 import { navItems, type NavItem } from '~/composables/useNav'
 
 const route = useRoute()
+const router = useRouter()
+const { isLoggedIn, nickname, logout } = useAuth()
 
 function isActive(item: NavItem): boolean {
   if (item.to === '/') return route.path === '/'
   return route.path.startsWith(item.to)
+}
+
+function handleLogout(): void {
+  logout()
+  router.push('/')
 }
 </script>
 
@@ -30,6 +37,32 @@ function isActive(item: NavItem): boolean {
             </NuxtLink>
           </li>
         </ul>
+
+        <!-- 登录 / 用户 + 退出 -->
+        <div class="shrink-0 border-l border-slate-200 pl-3">
+          <template v-if="isLoggedIn">
+            <span class="flex items-center gap-1.5 text-sm font-medium text-slate-600">
+              <Icon name="lucide:user" class="h-4 w-4 text-indigo-600" />
+              {{ nickname || '用户' }}
+            </span>
+            <button
+              type="button"
+              class="mt-1 flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              @click="handleLogout"
+            >
+              <Icon name="lucide:log-out" class="h-4 w-4" />
+              退出
+            </button>
+          </template>
+          <NuxtLink
+            v-else
+            to="/login"
+            class="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            <Icon name="lucide:log-in" class="h-4 w-4" />
+            登录
+          </NuxtLink>
+        </div>
       </nav>
     </header>
 
