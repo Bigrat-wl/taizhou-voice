@@ -5,10 +5,14 @@ export default defineNuxtConfig({
 
   modules: ['@nuxtjs/tailwindcss', '@nuxt/icon'],
 
-  // 开发期后端代理：/api → FastAPI（:8000）；部署期靠后端 CORS
-  devServer: {
-    proxy: {
+  // 开发期后端代理：/api 与 /data（静态音频）→ FastAPI（:8000）；部署期靠后端 CORS
+  nitro: {
+    devProxy: {
       '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/data': {
         target: 'http://localhost:8000',
         changeOrigin: true
       }
