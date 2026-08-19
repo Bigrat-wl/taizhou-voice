@@ -36,6 +36,12 @@ export default defineNuxtConfig({
         'lucide:upload',
         'lucide:user',
         'lucide:user-plus',
+        'lucide:check',
+        'lucide:skip-forward',
+        'lucide:refresh-cw',
+        'lucide:send',
+        'lucide:circle-check',
+        'lucide:list-music',
       ]
     }
   }
