@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -52,6 +53,9 @@ CORS_ALLOW_ORIGINS = [
     "http://127.0.0.1",
 ]
 
+# 静态文件目录：backend/data/audio/
+AUDIO_DIR = Path(__file__).resolve().parent.parent / "data" / "audio"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,6 +84,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# 确保音频目录存在并挂载静态文件服务
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/data/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 # 认证路由：/api/auth/register、/api/auth/login
 app.include_router(auth_router)
