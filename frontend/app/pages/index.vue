@@ -7,16 +7,10 @@ const features = [
     to: '/transcribe',
   },
   {
-    title: 'TTS',
-    description: '文本 → 方言语音',
-    icon: 'lucide:volume-2',
-    to: '/tts',
-  },
-  {
-    title: '音频互转',
-    description: '方言 ↔ 普通话音频',
-    icon: 'lucide:arrow-left-right',
-    to: '/convert',
+    title: '实时翻译',
+    description: '方言 ↔ 普通话录音互译',
+    icon: 'lucide:languages',
+    to: '/translate',
   },
 ]
 </script>
@@ -44,8 +38,8 @@ const features = [
       />
     </section>
 
-    <!-- 次入口：转写 / TTS / 音频互转（并列小卡片） -->
-    <section class="grid gap-4 sm:grid-cols-3">
+    <!-- 次入口：转写 / 实时翻译（并列小卡片） -->
+    <section class="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
       <FeatureCard
         v-for="f in features"
         :key="f.to"
