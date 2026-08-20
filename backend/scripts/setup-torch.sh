@@ -35,7 +35,10 @@ else
         CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
         CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
         
-        if [ "$CUDA_MAJOR" -ge 12 ]; then
+        if [ "$CUDA_MAJOR" -ge 12 ] && [ "$CUDA_MINOR" -ge 8 ]; then
+            echo "CUDA 12.8+（RTX 50 系列）→ 安装 nightly cu128 版 torch"
+            INDEX_URL="https://download.pytorch.org/whl/nightly/cu128"
+        elif [ "$CUDA_MAJOR" -ge 12 ]; then
             echo "CUDA 12.x → 安装 cu121 版 torch"
             INDEX_URL="https://download.pytorch.org/whl/cu121"
         elif [ "$CUDA_MAJOR" -ge 11 ] && [ "$CUDA_MINOR" -ge 8 ]; then
