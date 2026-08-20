@@ -16,6 +16,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "bcrypt>=5.0.0",
     "pyjwt>=2.13.0",
+    "pyttsx3>=2.90",
 ]
 
 [dependency-groups]
