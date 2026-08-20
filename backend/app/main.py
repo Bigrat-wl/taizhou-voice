@@ -21,7 +21,9 @@ from app.models import Sentence
 from app.routers.auth import router as auth_router
 from app.routers.leaderboard import router as leaderboard_router
 from app.routers.score import router as score_router
+from app.routers.tts import router as tts_router
 from app.services.asr_service import Qwen3ASRService
+from app.services.tts_service import CosyVoice2Service
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -39,6 +41,17 @@ asr_service = Qwen3ASRService(
     model_dir=MODEL_DIR,
     device=DEVICE,
     max_new_tokens=MAX_NEW_TOKENS,
+)
+
+# TTS 服务：CosyVoice2（仅 GPU 环境可用，懒加载）
+TTS_MODEL_DIR = os.getenv(
+    "TTS_MODEL_DIR", "/home/rat/dialect_asr_system/tts/output/final"
+)
+TTS_DEVICE = os.getenv("TTS_DEVICE", "cuda")
+
+tts_service = CosyVoice2Service(
+    model_dir=TTS_MODEL_DIR,
+    device=TTS_DEVICE,
 )
 
 # 允许的音频扩展名（用于临时文件落盘；解码本身交给 librosa/soundfile）
@@ -69,6 +82,7 @@ async def lifespan(app: FastAPI):
         logger.exception("模型预热失败，将在首个请求时重新加载")
     yield
     asr_service.unload()
+    tts_service.unload()
 
 
 app = FastAPI(
@@ -96,11 +110,17 @@ app.include_router(auth_router)
 app.include_router(leaderboard_router)
 # 评分路由：/api/score（需登录）
 app.include_router(score_router)
+# 语音合成路由：/api/tts（无需认证）
+app.include_router(tts_router)
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_loaded": asr_service.is_loaded}
+    return {
+        "status": "ok",
+        "model_loaded": asr_service.is_loaded,
+        "tts_loaded": tts_service.is_loaded,
+    }
 
 
 MAX_SENTENCES = 50  # 单次最多返回条数（上限限制）
