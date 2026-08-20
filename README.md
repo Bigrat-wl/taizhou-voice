@@ -44,18 +44,62 @@
 
 ### GPU 场景的 torch 安装（最易出错）
 
-GPU 版 torch 必须匹配显卡的 CUDA 版本。按 `nvidia-smi` 显示的 CUDA 版本选一种：
+**pyproject.toml 默认配置的是 CPU 版 torch**。GPU 部署需要手动修改 `backend/pyproject.toml`：
+
+**第一步：修改 pyproject.toml 的 torch 源**
+
+```toml
+# 改前（CPU版，开发用）
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
+# 改后（CUDA版，部署用）
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu128"    # ← 改为你的 CUDA 版本
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cuda" }
+torchaudio = { index = "pytorch-cuda" }
+```
+
+**第二步：修改 torch 版本号**
+
+```toml
+# 改前（CPU版固定版本）
+"torch==2.7.1",
+"torchaudio==2.7.1",
+
+# 改后（GPU版，cu128 源最高支持 2.11.0）
+"torch>=2.11.0",
+"torchaudio>=0.22.0",
+```
+
+**第三步：重新安装依赖**
 
 ```bash
-# CUDA 11.8
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu118
-
-# CUDA 12.1
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu121
-
-# 无 GPU（CPU）
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cpu
+cd backend
+uv sync
 ```
+
+**各显卡对应的 CUDA 版本和 torch 版本**：
+
+| 显卡系列 | 架构 | CUDA 版本 | torch 版本 | pyproject.toml 源 |
+|---------|------|----------|-----------|-----------------|
+| RTX 20/30/40 系列 | sm_86/sm_89/sm_100 | CUDA 12.1 | torch==2.7.1 | `url = "https://download.pytorch.org/whl/cu121"` |
+| RTX 50 系列 | sm_120 | CUDA 12.8 | torch==2.12.0.dev20260408 | `url = "https://download.pytorch.org/whl/nightly/cu128"` |
+| 无 GPU | — | — | torch==2.7.1 | `url = "https://download.pytorch.org/whl/cpu"`（默认） |
+
+> 查看显卡架构：`nvidia-smi` → 看 CUDA Version 字段
+
+> ⚠️ RTX 50 系列用的是 nightly 开发版（2.12.0.dev），正式版 cu128 源最高只有 2.11.0。开发版功能完整，但可能有小概率不稳定。
 
 ## 二、部署步骤
 
