@@ -24,17 +24,34 @@ def _now() -> datetime:
 
 
 class Sentence(Base):
-    """句子库（27 句种子）。"""
+    """句子库（按普通话去重，7 条唯一句）。"""
 
     __tablename__ = "sentences"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     text: Mapped[str] = mapped_column(Text, nullable=False, comment="普通话参考文本")
     dialect_text: Mapped[str] = mapped_column(
-        Text, nullable=False, comment="方言文本"
+        Text, nullable=False, comment="方言文本（参考版本）"
     )
     category: Mapped[str] = mapped_column(String(64), nullable=False, default="", comment="分类")
     difficulty: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="难度等级")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_now, comment="创建时间"
+    )
+
+
+class DialectRecording(Base):
+    """方言录音（同一句普通话的不同说话人方言版本）。"""
+
+    __tablename__ = "dialect_recordings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sentence_id: Mapped[int] = mapped_column(
+        ForeignKey("sentences.id"), nullable=False, comment="关联句子"
+    )
+    audio_path: Mapped[str] = mapped_column(String(512), nullable=False, comment="音频相对路径")
+    speaker: Mapped[str] = mapped_column(String(64), nullable=False, default="", comment="说话人标识")
+    dialect_text: Mapped[str] = mapped_column(Text, nullable=False, default="", comment="该版本方言文字")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=_now, comment="创建时间"
     )

@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Like, Recording, Sentence, User
+from app.models import DialectRecording, Like, Recording, Sentence, User
 from app.security import decode_token, get_current_user
 
 router = APIRouter(prefix="/api", tags=["leaderboard"])
@@ -255,7 +255,7 @@ def sentence_recordings(
     current_user: User | None = Depends(_get_optional_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """某句子下所有录音，按点赞数降序。
+    """某句子下所有录音（方言录音 + 用户录音），按点赞数降序。
 
     带 token 时 liked_by_me 反映当前用户状态，否则恒为 false。
     响应：``{ sentence: { id, text, dialect_text }, items: [...] }``
@@ -266,7 +266,7 @@ def sentence_recordings(
     if sentence is None:
         raise HTTPException(status_code=404, detail="句子不存在")
 
-    # 子查询：每条录音的点赞数
+    # 子查询：每条用户录音的点赞数
     like_count_subq = (
         select(
             Like.recording_id,
@@ -276,7 +276,8 @@ def sentence_recordings(
         .subquery()
     )
 
-    rows = (
+    # 用户录音
+    user_rows = (
         db.execute(
             select(
                 Recording.id,
@@ -292,17 +293,47 @@ def sentence_recordings(
         .all()
     )
 
+    # 方言录音（原始方言版本）
+    dialect_rows = db.execute(
+        select(DialectRecording)
+        .where(DialectRecording.sentence_id == sentence_id)
+    ).scalars().all()
+
     # 当前用户的点赞集合（用于 liked_by_me）
     liked_ids: set[int] = set()
     if current_user is not None:
         liked_ids = set(
             db.execute(
                 select(Like.recording_id).where(
-                    Like.recording_id.in_([r.id for r in rows]),
+                    Like.recording_id.in_([r.id for r in user_rows]),
                     Like.user_id == current_user.id,
                 )
             ).scalars().all()
         )
+
+    # 合并：方言录音 + 用户录音
+    items = []
+    # 方言录音（无点赞，标记为 dialect 类型）
+    for dr in dialect_rows:
+        items.append({
+            "recording_id": f"dialect_{dr.id}",
+            "nickname": dr.speaker or "方言",
+            "audio_url": f"/data/{dr.audio_path}",
+            "like_count": 0,
+            "liked_by_me": False,
+            "type": "dialect",
+            "dialect_text": dr.dialect_text,
+        })
+    # 用户录音
+    for r in user_rows:
+        items.append({
+            "recording_id": r.id,
+            "nickname": r.nickname,
+            "audio_url": f"/data/{r.audio_path}",
+            "like_count": r.like_count,
+            "liked_by_me": r.id in liked_ids,
+            "type": "user",
+        })
 
     return {
         "sentence": {
@@ -310,14 +341,5 @@ def sentence_recordings(
             "text": sentence.text,
             "dialect_text": sentence.dialect_text,
         },
-        "items": [
-            {
-                "recording_id": r.id,
-                "nickname": r.nickname,
-                "audio_url": f"/data/{r.audio_path}",
-                "like_count": r.like_count,
-                "liked_by_me": r.id in liked_ids,
-            }
-            for r in rows
-        ],
+        "items": items,
     }

@@ -1,15 +1,18 @@
-"""句子种子数据导入脚本。
+"""句子种子数据导入脚本（v2：去重 + 方言录音表）。
 
-从 ``hailing_asr/data/metadata.csv`` 读取句子，写入 ``sentences`` 表。
-可重复执行：按（普通话文本）去重，已存在则跳过，不产生重复行。
+从 metadata.csv 读取句子：
+1. 按普通话文本去重，写入 sentences 表（7 条唯一句）
+2. 全部 27 条方言录音写入 dialect_recordings 表，关联到对应句子
 
 字段映射（csv 表头：audio_path, text, mandarin_text）：
-- sentences.text         <- mandarin_text（普通话列）
-- sentences.dialect_text <- text（方言列）
-- category / difficulty  该 csv 未提供，取默认值（"" / 1）。
+- sentences.text         <- mandarin_text（普通话）
+- sentences.dialect_text <- text（方言，取第一条作为参考版本）
+- dialect_recordings.sentence_id <- 关联到对应句子
+- dialect_recordings.audio_path  <- audio_path
+- dialect_recordings.speaker     <- 从文件名提取（如"陈5"）
+- dialect_recordings.dialect_text <- text（方言）
 
-用法：
-    uv run python -m app.seed_sentences
+幂等：按 mandarin_text 判断句子是否已存在，按 (sentence_id, audio_path) 判断录音是否已存在。
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.db import SessionLocal, init_db
-from app.models import Sentence
+from app.models import DialectRecording, Sentence
 
 logger = logging.getLogger(__name__)
 
@@ -31,64 +34,101 @@ DEFAULT_CSV = Path(
 )
 
 
-def load_sentences(csv_path: Path | str = DEFAULT_CSV) -> list[Sentence]:
-    """读取 csv，构造（尚未入库的）Sentence 对象列表。"""
+def seed(csv_path: Path | str = DEFAULT_CSV) -> dict:
+    """导入句子和方言录音；返回统计信息。"""
     csv_path = Path(csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(f"句子源 csv 不存在: {csv_path}")
 
-    sentences: list[Sentence] = []
+    init_db()
+
+    # 读取 csv
+    rows = []
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             dialect = (row.get("text") or "").strip()
             mandarin = (row.get("mandarin_text") or "").strip()
+            audio = (row.get("audio_path") or "").strip()
             if not dialect and not mandarin:
-                continue  # 跳过空行
-            sentences.append(
-                Sentence(text=mandarin, dialect_text=dialect, category="", difficulty=1)
-            )
-    return sentences
+                continue
+            rows.append({"audio": audio, "dialect": dialect, "mandarin": mandarin})
 
+    # 按 mandarin 去重，保留顺序
+    seen_mandarin: dict[str, dict] = {}
+    for r in rows:
+        if r["mandarin"] not in seen_mandarin:
+            seen_mandarin[r["mandarin"]] = r  # 第一条作为参考方言版本
 
-def seed(csv_path: Path | str = DEFAULT_CSV) -> int:
-    """导入句子到 sentences 表；返回本次新增条数（可重复执行）。
-
-    每个 csv 行对应一条句子（同一句可能被不同说话人录制多次，故含重复文本）。
-    幂等策略：同一个 (text, dialect_text) 组合，已入库条数 >= csv 期望条数时跳过，
-    只补齐差额——首次运行入库 27 条，重复运行不重复、仍保持 27 条。
-    """
-    init_db()
-    sentences = load_sentences(csv_path)
-
-    # 每个 (text, dialect_text) 组合在 csv 中的期望条数
-    desired: dict[tuple[str, str], int] = {}
-    for s in sentences:
-        key = (s.text, s.dialect_text)
-        desired[key] = desired.get(key, 0) + 1
+    unique_sentences = list(seen_mandarin.values())
 
     with SessionLocal() as db:
-        existing = db.execute(select(Sentence.text, Sentence.dialect_text)).all()
-        from collections import Counter
+        # ── 导入 sentences（去重）──
+        existing_texts = set(
+            t[0] for t in db.execute(select(Sentence.text)).all()
+        )
+        added_sentences = 0
+        sentence_map: dict[str, int] = {}  # mandarin_text -> sentence_id
 
-        got = Counter((t, d) for t, d in existing)
+        for s in unique_sentences:
+            if s["mandarin"] in existing_texts:
+                # 已存在，查 id
+                row = db.execute(
+                    select(Sentence.id).where(Sentence.text == s["mandarin"])
+                ).first()
+                sentence_map[s["mandarin"]] = row[0]
+            else:
+                new = Sentence(
+                    text=s["mandarin"],
+                    dialect_text=s["dialect"],
+                    category="",
+                    difficulty=1,
+                )
+                db.add(new)
+                db.flush()
+                sentence_map[s["mandarin"]] = new.id
+                added_sentences += 1
 
-        added = 0
-        for (text, dialect), want in desired.items():
-            key = (text, dialect)
-            missing = want - got.get(key, 0)
-            for _ in range(max(missing, 0)):
-                db.add(Sentence(text=text, dialect_text=dialect, category="", difficulty=1))
-                added += 1
+        # ── 导入 dialect_recordings（全部 27 条）──
+        existing_recordings = set(
+            (r[0], r[1])
+            for r in db.execute(
+                select(DialectRecording.sentence_id, DialectRecording.audio_path)
+            ).all()
+        )
+        added_recordings = 0
+
+        for r in rows:
+            sid = sentence_map.get(r["mandarin"])
+            if sid is None:
+                continue
+            # 从文件名提取说话人（如 "陈5.WAV" -> "陈5"）
+            speaker = Path(r["audio"]).stem if r["audio"] else ""
+            if (sid, r["audio"]) not in existing_recordings:
+                db.add(DialectRecording(
+                    sentence_id=sid,
+                    audio_path=r["audio"],
+                    speaker=speaker,
+                    dialect_text=r["dialect"],
+                ))
+                added_recordings += 1
+
         db.commit()
-    return added
+
+    return {
+        "sentences_added": added_sentences,
+        "recordings_added": added_recordings,
+        "sentences_total": len(unique_sentences),
+        "recordings_total": len(rows),
+    }
 
 
 if __name__ == "__main__":
     import sys
 
-    added = seed()
-    with SessionLocal() as db:
-        total = db.query(Sentence).count()
-    print(f"新增 {added} 条，sentences 表当前共 {total} 条")
+    result = seed()
+    print(
+        f"sentences: 新增 {result['sentences_added']}，共 {result['sentences_total']} 条唯一句\n"
+        f"dialect_recordings: 新增 {result['recordings_added']}，共 {result['recordings_total']} 条方言录音"
+    )
     sys.exit(0)
