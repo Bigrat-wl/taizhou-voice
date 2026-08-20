@@ -23,6 +23,7 @@ from app.routers.leaderboard import router as leaderboard_router
 from app.routers.score import router as score_router
 from app.routers.tts import router as tts_router
 from app.services.asr_service import Qwen3ASRService
+from app.services.translate_service import TranslateService
 from app.services.tts_service import CosyVoice2Service
 
 logging.basicConfig(
@@ -54,6 +55,14 @@ tts_service = CosyVoice2Service(
     device=TTS_DEVICE,
 )
 
+# 翻译服务：方言↔普通话 文本互译（基于平行句对的规则映射）
+TRANSLATE_PAIRS_JSON = os.getenv(
+    "TRANSLATE_PAIRS_JSON",
+    str(Path(__file__).resolve().parent.parent / "data" / "translate_pairs.json"),
+)
+
+translate_service = TranslateService(pairs_json=TRANSLATE_PAIRS_JSON)
+
 # 允许的音频扩展名（用于临时文件落盘；解码本身交给 librosa/soundfile）
 _ALLOWED_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".webm"}
 
@@ -83,6 +92,7 @@ async def lifespan(app: FastAPI):
     yield
     asr_service.unload()
     tts_service.unload()
+    translate_service.unload()
 
 
 app = FastAPI(
@@ -182,10 +192,10 @@ def get_sentences(
 
 @app.post("/api/asr")
 def asr(audio: UploadFile = File(...)) -> JSONResponse:
-    """接收音频文件，返回普通话识别文本。
+    """接收音频文件，返回识别结果（谐音字 + 普通话翻译）。
 
     - 请求：multipart/form-data，字段名 `audio`。
-    - 响应：``{"text": "<普通话文本>", "language": "Chinese"}``
+    - 响应：``{"text": "<谐音字>", "mandarin": "<普通话>", "language": "Chinese"}``
     """
     suffix = Path(audio.filename or "audio.wav").suffix.lower() or ".wav"
     if suffix not in _ALLOWED_SUFFIXES:
@@ -205,7 +215,18 @@ def asr(audio: UploadFile = File(...)) -> JSONResponse:
         text = asr_service.transcribe_file(wav_path)
         if not text:
             raise HTTPException(status_code=422, detail="未识别到有效语音内容")
-        return JSONResponse({"text": text, "language": "Chinese"})
+
+        # 方言→普通话翻译
+        mandarin = ""
+        tr_result = translate_service.translate_dialect_to_mandarin(text)
+        if tr_result.get("success"):
+            mandarin = tr_result.get("target", "")
+
+        return JSONResponse({
+            "text": text,       # 谐音字（ASR 原始输出）
+            "mandarin": mandarin,  # 普通话翻译
+            "language": "Chinese",
+        })
     except HTTPException:
         raise
     except FileNotFoundError as exc:

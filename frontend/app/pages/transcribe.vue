@@ -27,8 +27,10 @@ const { url: previewUrl } = useBlobUrl(pendingBlob)
 
 /** 识别状态 */
 const recognizing = shallowRef(false)
-/** 识别结果文本 */
+/** 识别结果文本（谐音字） */
 const resultText = shallowRef('')
+/** 普通话翻译结果 */
+const resultMandarin = shallowRef('')
 /** 请求错误信息（后端 detail 或本地提示） */
 const errorText = shallowRef('')
 
@@ -42,6 +44,7 @@ function setPending(blob: Blob, name: string) {
   pendingBlob.value = blob
   pendingName.value = name
   resultText.value = ''
+  resultMandarin.value = ''
   errorText.value = ''
 }
 
@@ -78,14 +81,16 @@ async function transcribe() {
   recognizing.value = true
   errorText.value = ''
   resultText.value = ''
+  resultMandarin.value = ''
   try {
     const form = new FormData()
     form.append('audio', pendingBlob.value, pendingName.value)
-    const data = await $fetch<{ text: string; language?: string }>('/api/asr', {
+    const data = await $fetch<{ text: string; mandarin?: string; language?: string }>('/api/asr', {
       method: 'POST',
       body: form,
     })
     resultText.value = data.text
+    resultMandarin.value = data.mandarin || ''
   } catch (err) {
     errorText.value = getErrorDetail(err, '识别失败，请稍后重试。')
   } finally {
@@ -98,6 +103,7 @@ function reset() {
   pendingBlob.value = null
   pendingName.value = ''
   resultText.value = ''
+  resultMandarin.value = ''
   errorText.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
@@ -213,14 +219,27 @@ function reset() {
       </section>
 
       <!-- 结果区 -->
-      <section v-if="resultText" class="border-t border-slate-200 bg-slate-50 p-6">
-        <p class="mb-2 flex items-center gap-2 text-sm font-medium text-slate-600">
-          <Icon name="lucide:file-text" class="h-4 w-4 text-emerald-600" />
-          转写结果（普通话）
-        </p>
-        <p class="rounded-xl bg-white p-4 text-lg leading-relaxed text-slate-900 shadow-inner">
-          {{ resultText }}
-        </p>
+      <section v-if="resultText || resultMandarin" class="border-t border-slate-200 bg-slate-50 p-6">
+        <!-- 普通话翻译（主） -->
+        <div v-if="resultMandarin" class="mb-4">
+          <p class="mb-2 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Icon name="lucide:languages" class="h-4 w-4 text-emerald-600" />
+            普通话翻译
+          </p>
+          <p class="rounded-xl bg-white p-4 text-lg leading-relaxed text-slate-900 shadow-inner">
+            {{ resultMandarin }}
+          </p>
+        </div>
+        <!-- 谐音文字（次） -->
+        <div>
+          <p class="mb-2 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Icon name="lucide:file-text" class="h-4 w-4 text-sky-600" />
+            方言谐音文字
+          </p>
+          <p class="rounded-xl bg-white p-4 text-base leading-relaxed text-slate-700 shadow-inner">
+            {{ resultText }}
+          </p>
+        </div>
       </section>
     </div>
   </div>
