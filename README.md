@@ -44,40 +44,44 @@
 
 ### GPU 场景的 torch 安装（最易出错）
 
-GPU 版 torch 必须匹配显卡的 CUDA 版本。项目提供自动检测脚本：
+**pyproject.toml 不写 torch 依赖**，避免 `uv sync` 装 CPU 版。torch 由专门的脚本按 GPU 环境单独安装。
 
 ```bash
 cd backend
+
+# 第一步：装除 torch 外的所有依赖
+uv sync
+
+# 第二步：自动检测 GPU 环境，安装对应版本的 torch
 bash scripts/setup-torch.sh
 ```
 
 脚本会自动：
 1. 检测是否有 NVIDIA GPU
 2. 如果有，读取 CUDA 版本
-3. 安装对应版本的 torch（CUDA 11.8 → cu118，CUDA 12.x → cu121，无 GPU → CPU）
+3. 安装对应版本的 torch：
+   - CUDA 12.8+（RTX 50 系列）→ nightly cu128 版
+   - CUDA 12.x → cu121 版
+   - CUDA 11.8+ → cu118 版
+   - 无 GPU → CPU 版
 
 **手动安装**（如果脚本不适用）：
 
 ```bash
-# CUDA 11.8
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu118
+# RTX 50 系列（CUDA 12.8）
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# CUDA 12.1
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu121
+# RTX 20/30/40 系列（CUDA 12.1）
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# CUDA 11.8
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # 无 GPU（CPU）
-uv pip install torch==2.7.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cpu
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
-**各显卡对应的 CUDA 版本和 torch 版本**：
-
-| 显卡系列 | CUDA 版本 | torch 版本 | 安装命令 |
-|---------|----------|-----------|---------|
-| RTX 20/30/40 系列 | CUDA 12.1 | torch==2.7.1 | `bash scripts/setup-torch.sh`（自动） |
-| RTX 50 系列 | CUDA 12.8 | torch nightly | 需手动指定 nightly 源 |
-| 无 GPU | — | torch==2.7.1 | `bash scripts/setup-torch.sh`（自动） |
-
-> 查看显卡架构：`nvidia-smi` → 看 CUDA Version 字段
+> ⚠️ 装完 torch 后，启动后端必须用 `uv run --no-sync`，否则 uv 会把 torch 覆盖回 CPU 版。
 
 ## 二、部署步骤
 
@@ -199,8 +203,9 @@ TTS_MODEL_DIR = os.getenv("TTS_MODEL_DIR", os.path.join(_model_root, "tts", "fin
 
 ```bash
 cd backend
-uv sync                     # 按 pyproject.toml 安装依赖
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv sync                             # 第一步：装除 torch 外的所有依赖
+bash scripts/setup-torch.sh         # 第二步：按 GPU 环境装 torch
+uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000  # 第三步：启动（--no-sync 防止覆盖 torch）
 ```
 
 验证：
@@ -265,11 +270,11 @@ pnpm install
 
 # 7. 初始化数据
 cd ..\backend
-uv run python -m app.seed_sentences
-uv run python scripts\seed_test_user.py
+uv run --no-sync python -m app.seed_sentences
+uv run --no-sync python scripts\seed_test_user.py
 
-# 8. 启动后端
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+# 8. 启动后端（--no-sync 防止 uv 覆盖 torch）
+uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # 9. 启动前端（新终端）
 cd ..\frontend
@@ -280,6 +285,7 @@ pnpm dev
 
 - **`import torch` 报 `_ARRAY_API not found`**：numpy 版本与 torch 不匹配，用 torch 2.7.1 配 numpy 1.x。
 - **TTS 不可用**：TTS 需要 GPU，确认 `nvidia-smi` 能显示显卡。
+- **`uv run` 后 torch 变回 CPU 版**：必须用 `uv run --no-sync`，否则 uv 会按 pyproject.toml 重新安装依赖。
 - **浏览器录音无反应**：允许麦克风权限；确认后端已装 ffmpeg。
 - **浏览器录音格式是 webm**：正常现象，后端会自动调用 ffmpeg 转码为 16kHz WAV，无需前端处理。
 - **前端代理 404**：Nuxt 4 使用 `nitro.devProxy` 配置代理（不是 `devServer.proxy`），检查 `nuxt.config.ts` 的 `nitro` 字段。

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue'
 import { navItems } from '~/composables/useNav'
 import { useRecorder } from '~/composables/useRecorder'
 import { useBlobUrl } from '~/composables/useBlobUrl'
@@ -40,6 +40,79 @@ const anyRecording = computed(() => tz.isRecording.value || pt.isRecording.value
 const isProcessing = computed(() => phase.value !== 'idle')
 /** 是否可操作（非录制中且非处理中） */
 const idle = computed(() => !anyRecording.value && !isProcessing.value)
+
+/** 测试用例列表（全部 27 句平行语料，来自 hailing_asr/data/metadata.csv） */
+const testCases = [
+  { name: '陈2', file: '陈2.WAV', dialect: '砸啊个雅立睡的额惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '陈3', file: '陈3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡在！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '陈4', file: '陈4.WAV', dialect: '猫子不在啊，老鼠在翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '陈5', file: '陈5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包在！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '陈8', file: '陈8.WAV', dialect: '闷烫烟啊泡茶哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '陈9', file: '陈9.WAV', dialect: '秋拿个爬爬凳啊坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '钱1', file: '钱1.WAV', dialect: '你个曾吃饭啊？吃过啊了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '钱2', file: '钱2.WAV', dialect: '砸个雅立睡得个惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '钱3', file: '钱3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡呢！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '钱4', file: '钱4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '钱5', file: '钱5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '钱8', file: '钱8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '钱9', file: '钱9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '孙1', file: '孙1.WAV', dialect: '你啊曾吃饭啊？吃过了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '孙2', file: '孙2.WAV', dialect: '砸个雅立睡得不惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '孙3', file: '孙3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡呢！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '孙4', file: '孙4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '孙5', file: '孙5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '孙8', file: '孙8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '孙9', file: '孙9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '周1', file: '周1.WAV', dialect: '你个曾吃饭了？吃过了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '周2', file: '周2.WAV', dialect: '砸个雅立睡得个惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '周3', file: '周3.WAV', dialect: '你个嗲嗲呢？在外头哒寡了！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '周4', file: '周4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '周5', file: '周5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '周8', file: '周8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '周9', file: '周9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+]
+
+/** 下拉菜单是否打开 */
+const tcDropdownOpen = shallowRef(false)
+const tcDropdownRef = useTemplateRef<HTMLElement>('tcDropdown')
+
+/** 点击外部关闭下拉菜单 */
+function onTcClickOutside(e: MouseEvent) {
+  if (tcDropdownRef.value && !tcDropdownRef.value.contains(e.target as Node)) {
+    tcDropdownOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onTcClickOutside))
+onUnmounted(() => document.removeEventListener('click', onTcClickOutside))
+
+/** 试听中的测试用例文件名 */
+const previewingTc = shallowRef('')
+
+/** 试听/停止试听测试用例 */
+async function togglePreview(tc: typeof testCases[0]) {
+  if (previewingTc.value === tc.file) {
+    previewingTc.value = ''
+    return
+  }
+  previewingTc.value = tc.file
+}
+
+/** 停止试听 */
+function stopPreviewTc() {
+  previewingTc.value = ''
+}
+
+/** 加载测试用例到泰州话录音区 */
+function loadTestCase(tc: typeof testCases[0]) {
+  fetch(`/data/audio/samples/${tc.file}`)
+    .then(r => { if (!r.ok) throw new Error(); return r.blob() })
+    .then(blob => {
+      tzBlob.value = blob
+      errorText.value = ''
+    })
+    .catch(() => { errorText.value = '加载测试音频失败' })
+}
 
 // ── 每个方向独立的提交按钮文案（解决「分不清哪个方向在处理」） ──
 const DIRECTION_LABEL: Record<string, string> = {
@@ -178,16 +251,74 @@ async function submit(direction: 'tz2pt' | 'pt2tz') {
 </script>
 
 <template>
-  <!-- CSS Grid 三行：录音卡片(紧凑) → 预览行(固定高度，v-show 切换不跳动) → 结果区(撑满) -->
-  <div class="grid h-full grid-rows-[auto_auto_1fr] px-4 pb-4 w-full gap-2">
-    <!-- ① 录音卡片：仅 mic 按钮 + 标签，一行搞定 -->
-    <div class="shrink-0 space-y-2">
-      <section class="py-1 text-center">
-        <span class="mx-auto flex h-6 w-6 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-          <Icon :name="item.icon" class="h-3 w-3" />
+  <!-- CSS Grid 四行：标题 → 测试用例下拉 → 录音卡片 → 预览行 → 结果区 -->
+  <div class="grid h-full grid-rows-[auto_auto_auto_auto_1fr] px-4 pb-4 w-full gap-2">
+    <!-- ① 标题 -->
+    <section class="py-1 text-center shrink-0">
+      <span class="mx-auto flex h-6 w-6 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+        <Icon :name="item.icon" class="h-3 w-3" />
+      </span>
+      <h1 class="mt-0.5 text-base font-bold text-slate-900">{{ item.label }}</h1>
+    </section>
+
+    <!-- ② 测试用例下拉菜单 -->
+    <div ref="tcDropdown" class="relative shrink-0">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+        @click="tcDropdownOpen = !tcDropdownOpen"
+      >
+        <span class="flex items-center gap-2">
+          <Icon name="lucide:flask-conical" class="h-4 w-4 text-amber-500" />
+          测试用例
+          <span class="text-xs font-normal text-slate-400">（{{ testCases.length }} 句）</span>
         </span>
-        <h1 class="mt-0.5 text-base font-bold text-slate-900">{{ item.label }}</h1>
-      </section>
+        <Icon
+          name="lucide:chevron-down"
+          class="h-4 w-4 text-slate-400 transition-transform duration-200"
+          :class="{ 'rotate-180': tcDropdownOpen }"
+        />
+      </button>
+      <!-- 下拉列表 -->
+      <div
+        v-show="tcDropdownOpen"
+        class="absolute left-0 top-full z-10 mt-1 w-full max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg"
+      >
+        <div
+          v-for="tc in testCases"
+          :key="tc.file"
+          class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-amber-50"
+          @click="loadTestCase(tc); tcDropdownOpen = false"
+        >
+          <!-- 试听按钮 -->
+          <button
+            type="button"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition"
+            :class="previewingTc === tc.file
+              ? 'bg-amber-500 text-white'
+              : 'bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-600'"
+            :title="previewingTc === tc.file ? '停止' : '试听'"
+            @click.stop="togglePreview(tc)"
+          >
+            <Icon
+              :name="previewingTc === tc.file ? 'lucide:pause' : 'lucide:play'"
+              class="h-3 w-3"
+            />
+          </button>
+          <!-- 文本信息 -->
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="shrink-0 text-xs font-semibold text-slate-700">{{ tc.name }}</span>
+              <span class="truncate text-xs text-slate-500">{{ tc.dialect }}</span>
+            </div>
+            <p class="truncate pl-[2.75rem] text-[11px] text-slate-400">→ {{ tc.mandarin }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 录音卡片：仅 mic 按钮 + 标签，一行搞定 -->
+    <div class="shrink-0 space-y-2">
       <div class="grid grid-cols-2 gap-3">
         <!-- 泰州话 -->
         <div class="flex items-center gap-2.5 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5">
@@ -233,7 +364,7 @@ async function submit(direction: 'tz2pt' | 'pt2tz') {
       </div>
     </div>
 
-    <!-- ② 预览行（常驻，始终占位，不跳动） -->
+    <!-- ④ 预览行（常驻，始终占位，不跳动） -->
     <div class="grid grid-cols-2 gap-3">
       <!-- 泰州话预览 -->
       <div class="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 min-h-[2.75rem]">
@@ -269,7 +400,7 @@ async function submit(direction: 'tz2pt' | 'pt2tz') {
       </div>
     </div>
 
-    <!-- ③ 结果区：flex-1 撑满剩余高度 -->
+    <!-- ⑤ 结果区：flex-1 撑满剩余高度 -->
     <div class="flex flex-col min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <!-- 结果标题（固定不压缩） -->
       <div class="shrink-0 px-5 pt-3 pb-1.5">
