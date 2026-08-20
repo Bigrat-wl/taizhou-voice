@@ -41,13 +41,35 @@ const hasAudio = computed(() => pendingBlob.value !== null)
 /** 录音或识别进行中时禁用按钮 */
 const busy = computed(() => isRecording.value || recognizing.value)
 
-/** 测试用例列表（参考 dialect_asr_system 项目的27句平行语料） */
+/** 测试用例列表（全部 27 句平行语料，来自 hailing_asr/data/metadata.csv） */
 const testCases = [
-  { name: '钱1', file: '钱1.WAV', dialect: '你个曾吃饭啊？吃过啊了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '陈2', file: '陈2.WAV', dialect: '砸啊个雅立睡的额惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '陈3', file: '陈3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡在！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '陈4', file: '陈4.WAV', dialect: '猫子不在啊，老鼠在翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
   { name: '陈5', file: '陈5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包在！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
-  { name: '孙3', file: '孙3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡呢！', mandarin: '你爷爷呢？他在外面聊天呢！' },
-  { name: '周2', file: '周2.WAV', dialect: '砸个雅立睡得个惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '陈8', file: '陈8.WAV', dialect: '闷烫烟啊泡茶哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
   { name: '陈9', file: '陈9.WAV', dialect: '秋拿个爬爬凳啊坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '钱1', file: '钱1.WAV', dialect: '你个曾吃饭啊？吃过啊了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '钱2', file: '钱2.WAV', dialect: '砸个雅立睡得个惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '钱3', file: '钱3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡呢！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '钱4', file: '钱4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '钱5', file: '钱5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '钱8', file: '钱8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '钱9', file: '钱9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '孙1', file: '孙1.WAV', dialect: '你啊曾吃饭啊？吃过了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '孙2', file: '孙2.WAV', dialect: '砸个雅立睡得不惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '孙3', file: '孙3.WAV', dialect: '你个嗲嗲呢？他在外头哒寡呢！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '孙4', file: '孙4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '孙5', file: '孙5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '孙8', file: '孙8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '孙9', file: '孙9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
+  { name: '周1', file: '周1.WAV', dialect: '你个曾吃饭了？吃过了，你吃的什尼啊？', mandarin: '你吃饭了吗？吃了，你吃的什么啊？' },
+  { name: '周2', file: '周2.WAV', dialect: '砸个雅立睡得个惬意啊，隔壁有人在杠桑', mandarin: '昨天夜里睡得不舒服啊，隔壁有人在吵架' },
+  { name: '周3', file: '周3.WAV', dialect: '你个嗲嗲呢？在外头哒寡了！', mandarin: '你爷爷呢？他在外面聊天呢！' },
+  { name: '周4', file: '周4.WAV', dialect: '猫子不在噶，老鼠在噶滴翻连叉！', mandarin: '猫子不在家，老鼠在家翻跟头！' },
+  { name: '周5', file: '周5.WAV', dialect: '你早上吃滴什尼啊？鱼汤面、烫干丝，海黄包！', mandarin: '你早上吃的什么啊？鱼汤面、烫干丝、蟹黄包！' },
+  { name: '周8', file: '周8.WAV', dialect: '闷烫烟泡茶到哪儿泡得开啊！', mandarin: '温水泡茶到哪儿泡得开啊！' },
+  { name: '周9', file: '周9.WAV', dialect: '秋拿个爬爬凳坐我旁边啊！', mandarin: '就拿个小凳子做我旁边啊！' },
 ]
 
 /** 下拉菜单是否打开 */
