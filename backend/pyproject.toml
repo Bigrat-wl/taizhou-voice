@@ -25,12 +25,4 @@ dev = ["pytest>=8"]
 [tool.uv]
 index-url = "https://pypi.org/simple"
 
-# torch / torchaudio 固定使用 CPU 版（download.pytorch.org/whl/cpu），避免误装 CUDA 版
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-torchaudio = { index = "pytorch-cpu" }
+# torch / torchaudio 不写死 CPU 源——部署时由 scripts/setup-torch.sh 按 GPU 环境单独安装
