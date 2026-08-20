@@ -37,58 +37,58 @@ function onEnded() {
 </script>
 
 <template>
-  <div class="flex gap-3">
-    <!-- 时间线圆点 + 竖线 -->
-    <div class="flex flex-col items-center">
+  <!-- 泰州话靠左，普通话靠右，像 QQ 聊天 -->
+  <div class="flex py-2" :class="direction === 'tz2pt' ? 'justify-start' : 'justify-end'">
+    <div class="max-w-[75%]">
+      <!-- 气泡 -->
       <div
-        class="mt-1.5 h-3 w-3 shrink-0 rounded-full"
-        :class="direction === 'tz2pt' ? 'bg-amber-400' : 'bg-sky-400'"
-      ></div>
-      <div class="w-px flex-1 bg-slate-200"></div>
-    </div>
-
-    <!-- 内容 -->
-    <div class="flex-1 pb-6">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0 flex-1">
-          <!-- 标题：语言方向 + 时间 -->
-          <div class="flex items-center gap-2">
-            <span
-              class="text-sm font-bold"
-              :class="direction === 'tz2pt' ? 'text-amber-600' : 'text-sky-600'"
-            >
-              {{ direction === 'tz2pt' ? '泰州话' : '普通话' }}
-            </span>
-            <span class="text-xs text-slate-400">{{ time }}</span>
-          </div>
-          <!-- 识别文字（翻译结果） -->
-          <p class="mt-1 text-base leading-relaxed text-slate-800">{{ text }}</p>
-          <!-- TTS 失败提示 -->
-          <p v-if="ttsError" class="mt-1 flex items-center gap-1 text-xs text-rose-400">
-            <Icon name="lucide:alert-circle" class="h-3 w-3" />
-            {{ ttsError }}
-          </p>
+        class="rounded-2xl px-4 py-2.5 shadow-sm"
+        :class="
+          direction === 'tz2pt'
+            ? 'bg-amber-100 text-amber-900 rounded-bl-sm'
+            : 'bg-sky-100 text-sky-900 rounded-br-sm'
+        "
+      >
+        <!-- 标签 + 时间 -->
+        <div class="flex items-center gap-2 mb-1">
+          <span
+            class="text-xs font-bold"
+            :class="direction === 'tz2pt' ? 'text-amber-600' : 'text-sky-600'"
+          >
+            {{ direction === 'tz2pt' ? '泰州话' : '普通话' }}
+          </span>
+          <span class="text-[10px] text-slate-400">{{ time }}</span>
         </div>
+        <!-- 文字 -->
+        <p class="text-sm leading-relaxed">{{ text }}</p>
+        <!-- TTS 失败提示 -->
+        <p v-if="ttsError" class="mt-1 flex items-center gap-1 text-xs text-rose-400">
+          <Icon name="lucide:alert-circle" class="h-3 w-3" />
+          {{ ttsError }}
+        </p>
+      </div>
 
-        <!-- 播放按钮（有音频时显示） -->
+      <!-- 播放按钮 + 音频 -->
+      <div v-if="audioUrl" class="mt-1.5 flex items-center gap-2" :class="direction === 'tz2pt' ? '' : 'justify-end'">
         <button
-          v-if="audioUrl"
           type="button"
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
-          :class="{ 'border-emerald-300 bg-emerald-50 text-emerald-600': playing }"
-          title="播放译文语音"
+          class="flex h-7 items-center gap-1 rounded-full border px-2 text-xs transition"
+          :class="
+            playing
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-600'
+              : direction === 'tz2pt'
+                ? 'border-amber-200 bg-white text-amber-600 hover:bg-amber-50'
+                : 'border-sky-200 bg-white text-sky-600 hover:bg-sky-50'
+          "
           @click="togglePlay"
         >
-          <Icon
-            v-if="playing"
-            name="lucide:volume-2"
-            class="h-4 w-4"
-          />
-          <Icon v-else name="lucide:play" class="h-4 w-4" />
+          <Icon v-if="playing" name="lucide:volume-2" class="h-3 w-3" />
+          <Icon v-else name="lucide:play" class="h-3 w-3" />
+          {{ playing ? '播放中' : '播放译文' }}
         </button>
       </div>
 
-      <!-- audio 元素（有音频时渲染） -->
+      <!-- audio 元素 -->
       <audio
         v-if="audioUrl"
         ref="audioEl"

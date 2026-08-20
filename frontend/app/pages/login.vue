@@ -3,8 +3,8 @@ const { login } = useAuth()
 const route = useRoute()
 const router = useRouter()
 
-const email = ref('')
-const password = ref('')
+const email = ref('test@test.com')
+const password = ref('123456')
 const error = ref('')
 const loading = ref(false)
 

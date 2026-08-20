@@ -188,14 +188,11 @@ function switchTab(tab: Tab) {
 <template>
   <div class="mx-auto max-w-3xl px-4 py-10">
     <!-- 页头 -->
-    <section class="mb-8 text-center">
-      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
-        <Icon :name="item.icon" class="h-7 w-7" />
+    <section class="mb-6 text-center">
+      <span class="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
+        <Icon :name="item.icon" class="h-4 w-4" />
       </span>
-      <h1 class="mt-4 text-2xl font-bold text-slate-900">{{ item.label }}</h1>
-      <p class="mx-auto mt-2 max-w-md text-slate-500">
-        看看谁是方言达人！正确数排行 + 每句最佳录音点赞。
-      </p>
+      <h1 class="mt-2 text-xl font-bold text-slate-900">{{ item.label }}</h1>
     </section>
 
     <!-- Tab 切换 -->

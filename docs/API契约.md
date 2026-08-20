@@ -73,15 +73,18 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| POST | `/api/asr` | 否 | 音频 → 普通话文本（转写页复用） |
+| POST | `/api/asr` | 否 | 音频 → 方言谐音 + 普通话翻译（转写页复用） |
 
 **请求**：`multipart/form-data`，字段名 `audio`（支持 `.wav/.mp3/.flac/.ogg/.m4a/.wma/.aac/.webm`）。
 
 **响应 200：**
 
 ```json
-{ "text": "今天天气真好", "language": "Chinese" }
+{ "text": "今朝天气老好", "mandarin": "今天天气真好", "language": "Chinese" }
 ```
+
+- `text`：ASR 原始输出（方言谐音字）
+- `mandarin`：大模型翻译后的普通话文本
 
 ### 1.3 认证 Auth（待实现）
 

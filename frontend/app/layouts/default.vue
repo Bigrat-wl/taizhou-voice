@@ -5,6 +5,9 @@ const route = useRoute()
 const router = useRouter()
 const { isLoggedIn, nickname, logout } = useAuth()
 
+/** Function pages (translate/transcribe/challenge) use fullHeight layout */
+const fullHeight = computed(() => !!route.meta.fullHeight)
+
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 
@@ -43,7 +46,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+  <div :class="fullHeight ? 'flex h-screen flex-col overflow-hidden bg-slate-50 text-slate-900' : 'flex min-h-screen flex-col bg-slate-50 text-slate-900'">
     <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
       <nav class="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
         <NuxtLink to="/" class="flex items-center gap-2 text-lg font-bold text-slate-900">
@@ -117,11 +120,11 @@ onUnmounted(() => {
       </nav>
     </header>
 
-    <main class="flex-1">
+    <main :class="fullHeight ? 'flex-1 min-h-0' : 'flex-1'">
       <slot />
     </main>
 
-    <footer class="border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    <footer v-if="!fullHeight" class="border-t border-slate-200 py-4 text-center text-xs text-slate-400">
       泰州方言通 · 让泰州话讲下去
     </footer>
   </div>
