@@ -46,6 +46,11 @@ export default defineNuxtConfig({
         'lucide:send',
         'lucide:circle-check',
         'lucide:list-music',
+        'lucide:library',
+        'lucide:chevron-right',
+        'lucide:languages',
+        'lucide:arrow-left',
+        'lucide:shuffle',
       ]
     }
   }
