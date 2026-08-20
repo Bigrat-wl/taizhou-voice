@@ -1,12 +1,15 @@
 """排行榜 + 点赞 + 句子录音路由。
 
 - GET  /api/leaderboard/correct       正确数榜（score >= 60 排名）
+- GET  /api/leaderboard/likes          点赞数榜（所有录音，按点赞数降序，同赞随机）
 - POST /api/recordings/{id}/like      点赞（需登录，幂等 200）
 - DEL  /api/recordings/{id}/like      取消点赞（需登录，幂等 200）
 - GET  /api/sentences/{id}/recordings 某句子下录音按点赞数降序
 """
 
 from __future__ import annotations
+
+import random
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -86,6 +89,87 @@ def leaderboard_correct(
             "best_score": r.best_score,
         }
         for idx, r in enumerate(rows, start=1)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/leaderboard/likes
+# ---------------------------------------------------------------------------
+
+@router.get("/leaderboard/likes", summary="点赞数榜（所有录音）")
+def leaderboard_likes(
+    limit: int = Query(default=50, ge=1, description="返回条数"),
+    current_user: User | None = Depends(_get_optional_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """点赞数榜：所有录音按点赞数降序，点赞数相同则随机排序。
+
+    带 token 时 liked_by_me 反映当前用户状态，否则恒为 false。
+    响应：``[{ recording_id, nickname, sentence_text, audio_url, like_count, liked_by_me }, ...]``
+    """
+    # 子查询：每条录音的点赞数
+    like_count_subq = (
+        select(
+            Like.recording_id,
+            func.count().label("like_count"),
+        )
+        .group_by(Like.recording_id)
+        .subquery()
+    )
+
+    rows = (
+        db.execute(
+            select(
+                Recording.id,
+                User.nickname,
+                Sentence.text.label("sentence_text"),
+                Recording.audio_path,
+                func.coalesce(like_count_subq.c.like_count, 0).label("like_count"),
+            )
+            .join(User, Recording.user_id == User.id)
+            .join(Sentence, Recording.sentence_id == Sentence.id)
+            .outerjoin(like_count_subq, Recording.id == like_count_subq.c.recording_id)
+            .order_by(func.coalesce(like_count_subq.c.like_count, 0).desc())
+        )
+        .all()
+    )
+
+    # 点赞数相同则随机排序
+    rows_list = list(rows)
+    grouped: dict[int, list] = {}
+    for r in rows_list:
+        grouped.setdefault(r.like_count, []).append(r)
+    shuffled = []
+    for like_count in sorted(grouped.keys(), reverse=True):
+        group = grouped[like_count]
+        random.shuffle(group)
+        shuffled.extend(group)
+
+    # 截取 limit 条
+    shuffled = shuffled[:limit]
+
+    # 当前用户的点赞集合（用于 liked_by_me）
+    liked_ids: set[int] = set()
+    if current_user is not None:
+        liked_ids = set(
+            db.execute(
+                select(Like.recording_id).where(
+                    Like.recording_id.in_([r.id for r in shuffled]),
+                    Like.user_id == current_user.id,
+                )
+            ).scalars().all()
+        )
+
+    return [
+        {
+            "recording_id": r.id,
+            "nickname": r.nickname,
+            "sentence_text": r.sentence_text,
+            "audio_url": f"/data/{r.audio_path}",
+            "like_count": r.like_count,
+            "liked_by_me": r.id in liked_ids,
+        }
+        for r in shuffled
     ]
 
 

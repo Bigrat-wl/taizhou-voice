@@ -42,93 +42,55 @@ async function fetchCorrect() {
   }
 }
 
-// ━━━ 点赞数榜（某句子） ━━━
-interface SentenceInfo { id: number; text: string; dialect_text: string }
-interface RecordingItem {
+// ━━━ 点赞数榜（所有录音） ━━━
+interface LikeRankItem {
   recording_id: number
   nickname: string
+  sentence_text: string
   audio_url: string
   like_count: number
   liked_by_me: boolean
 }
-interface SentenceRecordings {
-  sentence: SentenceInfo
-  items: RecordingItem[]
+
+const likesList = ref<LikeRankItem[]>([])
+const loadingLikes = shallowRef(false)
+const likesError = shallowRef('')
+
+async function fetchLikes() {
+  loadingLikes.value = true
+  likesError.value = ''
+  try {
+    const data = await $fetch<LikeRankItem[]>('/api/leaderboard/likes', {
+      query: { limit: 50 },
+      headers: authHeaders.value,
+    })
+    likesList.value = data
+  } catch (err) {
+    likesError.value = getErrorDetail(err, '获取点赞榜失败')
+  } finally {
+    loadingLikes.value = false
+  }
 }
-
-// 句子列表（供选择）
-interface Sentence { id: number; text: string; dialect_text: string }
-const sentences = ref<Sentence[]>([])
-const loadingSentences = shallowRef(false)
-
-// 当前选中句子
-const selectedSentenceId = shallowRef<number | null>(null)
-
-// 录音列表
-const recordings = ref<SentenceRecordings | null>(null)
-const loadingRecordings = shallowRef(false)
-const recordingsError = shallowRef('')
 
 // 当前正在播放的录音 id
 const playingId = shallowRef<number | null>(null)
 
-async function fetchSentences() {
-  loadingSentences.value = true
-  try {
-    const data = await $fetch<{ sentences: Sentence[] }>('/api/sentences', {
-      query: { n: 50 },
-    })
-    sentences.value = data.sentences
-    if (sentences.value.length > 0 && selectedSentenceId.value === null) {
-      selectedSentenceId.value = sentences.value[0].id
-    }
-  } catch {
-    // 句子列表获取失败不阻塞主流程
-  } finally {
-    loadingSentences.value = false
-  }
-}
-
-async function fetchRecordings(sentenceId: number) {
-  loadingRecordings.value = true
-  recordingsError.value = ''
-  recordings.value = null
-  try {
-    const data = await $fetch<SentenceRecordings>(
-      `/api/sentences/${sentenceId}/recordings`,
-      { headers: authHeaders.value },
-    )
-    recordings.value = data
-  } catch (err) {
-    recordingsError.value = getErrorDetail(err, '获取录音列表失败')
-  } finally {
-    loadingRecordings.value = false
-  }
-}
-
-// 选中句子变化时重新加载
-function selectSentence(id: number) {
-  selectedSentenceId.value = id
-  playingId.value = null
-  fetchRecordings(id)
-}
-
 // ━━━ 点赞/取消点赞 ━━━
 const likingId = shallowRef<number | null>(null)
 
-async function toggleLike(recording: RecordingItem) {
+async function toggleLike(item: LikeRankItem) {
   if (!isLoggedIn.value) return
-  if (likingId.value === recording.recording_id) return
-  likingId.value = recording.recording_id
+  if (likingId.value === item.recording_id) return
+  likingId.value = item.recording_id
 
   try {
-    const method = recording.liked_by_me ? 'DELETE' : 'POST'
+    const method = item.liked_by_me ? 'DELETE' : 'POST'
     const data = await $fetch<{ like_count: number; liked_by_me: boolean }>(
-      `/api/recordings/${recording.recording_id}/like`,
+      `/api/recordings/${item.recording_id}/like`,
       { method, headers: authHeaders.value },
     )
-    recording.like_count = data.like_count
-    recording.liked_by_me = data.liked_by_me
+    item.like_count = data.like_count
+    item.liked_by_me = data.liked_by_me
   } catch {
     // 静默失败，不弹错误
   } finally {
@@ -139,7 +101,7 @@ async function toggleLike(recording: RecordingItem) {
 // ━━━ 音频播放 ━━━
 const audioEl = shallowRef<HTMLAudioElement | null>(null)
 
-function playRecording(item: RecordingItem) {
+function playRecording(item: LikeRankItem) {
   // 点击正在播放的 → 暂停
   if (playingId.value === item.recording_id && audioEl.value) {
     audioEl.value.pause()
@@ -170,7 +132,7 @@ function scoreBadgeColor(score: number): string {
 // ━━━ 初始化 ━━━
 onMounted(() => {
   fetchCorrect()
-  fetchSentences()
+  fetchLikes()
 })
 
 // Tab 切换时懒加载
@@ -179,8 +141,8 @@ function switchTab(tab: Tab) {
   if (tab === 'correct' && correctList.value.length === 0 && !loadingCorrect.value) {
     fetchCorrect()
   }
-  if (tab === 'likes' && selectedSentenceId.value && recordings.value === null && !loadingRecordings.value) {
-    fetchRecordings(selectedSentenceId.value)
+  if (tab === 'likes' && likesList.value.length === 0 && !loadingLikes.value) {
+    fetchLikes()
   }
 }
 </script>
@@ -302,52 +264,20 @@ function switchTab(tab: Tab) {
 
     <!-- ━━━ 点赞榜 Tab ━━━ -->
     <div v-show="activeTab === 'likes'">
-      <!-- 句子选择器 -->
-      <div class="mb-6">
-        <label class="mb-2 block text-sm font-medium text-slate-700">选择句子</label>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="s in sentences"
-            :key="s.id"
-            type="button"
-            class="rounded-lg border px-3 py-1.5 text-xs font-medium transition"
-            :class="
-              selectedSentenceId === s.id
-                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            "
-            @click="selectSentence(s.id)"
-          >
-            {{ s.text }}
-          </button>
-        </div>
-      </div>
-
       <!-- 加载中 -->
-      <div v-if="loadingRecordings" class="py-12 text-center">
+      <div v-if="loadingLikes" class="py-12 text-center">
         <Icon name="lucide:loader-circle" class="mx-auto h-8 w-8 animate-spin text-indigo-500" />
-        <p class="mt-3 text-sm text-slate-500">加载录音…</p>
+        <p class="mt-3 text-sm text-slate-500">加载中…</p>
       </div>
 
       <!-- 错误 -->
-      <p v-if="recordingsError" class="rounded-lg bg-rose-50 px-4 py-3 text-center text-sm text-rose-600">
-        {{ recordingsError }}
+      <p v-if="likesError" class="rounded-lg bg-rose-50 px-4 py-3 text-center text-sm text-rose-600">
+        {{ likesError }}
       </p>
-
-      <!-- 句子信息 -->
-      <div
-        v-if="recordings && recordings.sentence"
-        class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4"
-      >
-        <p class="text-base font-semibold text-indigo-900">{{ recordings.sentence.text }}</p>
-        <p class="mt-1 text-sm text-indigo-600">
-          <span class="font-medium">方言：</span>{{ recordings.sentence.dialect_text }}
-        </p>
-      </div>
 
       <!-- 空状态 -->
       <div
-        v-if="!loadingRecordings && !recordingsError && recordings && recordings.items.length === 0"
+        v-if="!loadingLikes && !likesError && likesList.length === 0"
         class="rounded-2xl border border-slate-200 bg-white p-12 text-center"
       >
         <Icon name="lucide:mic-off" class="mx-auto h-12 w-12 text-slate-300" />
@@ -355,9 +285,9 @@ function switchTab(tab: Tab) {
       </div>
 
       <!-- 录音列表 -->
-      <div v-if="recordings && recordings.items.length > 0" class="flex flex-col gap-3">
+      <div v-if="likesList.length > 0" class="flex flex-col gap-3">
         <div
-          v-for="(rec, idx) in recordings.items"
+          v-for="(rec, idx) in likesList"
           :key="rec.recording_id"
           class="flex items-center gap-4 rounded-2xl border bg-white px-5 py-4 shadow-sm transition hover:shadow-md"
           :class="{
@@ -396,9 +326,10 @@ function switchTab(tab: Tab) {
             />
           </button>
 
-          <!-- 昵称 -->
+          <!-- 昵称 + 句子 -->
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-slate-800">{{ rec.nickname }}</p>
+            <p class="truncate text-xs text-slate-400">{{ rec.sentence_text }}</p>
           </div>
 
           <!-- 点赞按钮 -->
